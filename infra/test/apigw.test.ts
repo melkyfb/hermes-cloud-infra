@@ -25,7 +25,24 @@ test('ApiGatewayStack: WAF with 4 rules and a Lambda authorizer', () => {
   const api = new ApiGatewayStack(app, 'Api', { env, vpc: vpc.vpc, freellmapiService: ecs.freellmapiService });
   const t = Template.fromStack(api);
   t.resourceCountIs('AWS::WAFv2::WebACL', 1);
-  t.hasResourceProperties('AWS::WAFv2::WebACL', { Rules: Match.arrayWith([]) });
+  t.hasResourceProperties('AWS::WAFv2::WebACL', {
+    Rules: Match.arrayWith([
+      Match.objectLike({ Name: 'RateLimitPerIP', Priority: 1 }),
+      Match.objectLike({ Name: 'AWSBotControl', Priority: 2 }),
+      Match.objectLike({ Name: 'AWSIPReputation', Priority: 3 }),
+      Match.objectLike({ Name: 'BodySizeLimit', Priority: 4 }),
+    ]),
+  });
   t.resourceCountIs('AWS::Lambda::Function', 1);
   t.hasResourceProperties('AWS::ElasticLoadBalancingV2::TargetGroup', { Port: 3001 });
+
+  // Security-critical: authorizer must protect /v1/{proxy+}, not /api/ping
+  t.hasResourceProperties('AWS::ApiGatewayV2::Route', {
+    RouteKey: 'ANY /v1/{proxy+}',
+    AuthorizerId: Match.anyValue(),
+  });
+  t.hasResourceProperties('AWS::ApiGatewayV2::Route', {
+    RouteKey: 'GET /api/ping',
+    AuthorizerId: Match.absent(),
+  });
 });
