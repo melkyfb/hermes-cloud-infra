@@ -1,0 +1,41 @@
+name: 'Deploy Infra (CDK)'
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "infra/**" ]
+  workflow_dispatch:
+permissions:
+  id-token: write
+  contents: read
+env:
+  AWS_REGION: eu-central-1
+jobs:
+  cdk-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: infra/package-lock.json
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsDeployRole
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Install deps
+        working-directory: infra
+        run: npm ci
+      - name: CDK Diff (audit trail)
+        working-directory: infra
+        run: npx cdk diff --all 2>&1 || true
+      - name: CDK Deploy
+        working-directory: infra
+        run: npx cdk deploy --all --require-approval never --outputs-file cdk-outputs.json
+      - name: Upload CDK outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdk-outputs
+          path: infra/cdk-outputs.json
+          retention-days: 30
