@@ -105,7 +105,8 @@ Note: at execution, run `npm install aws-cdk-lib@latest aws-cdk@latest` to pin t
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
+    "isolatedModules": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
@@ -232,7 +233,7 @@ export class VpcStack extends cdk.Stack {
       destination: ec2.FlowLogDestination.toCloudWatchLogs(
         new logs.LogGroup(this, 'VpcFlowLogs', {
           logGroupName: '/vpc/hermes/flow-logs',
-          retention: logs.RetentionDays.THIRTY_DAYS,
+          retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
       ),
@@ -844,7 +845,7 @@ export class EcsClusterStack extends cdk.Stack {
         streamPrefix: 'freellmapi',
         logGroup: new logs.LogGroup(this, 'FreellmapiLogs', {
           logGroupName: '/ecs/hermes/freellmapi',
-          retention: logs.RetentionDays.THIRTY_DAYS,
+          retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
       }),
@@ -902,7 +903,7 @@ export class EcsClusterStack extends cdk.Stack {
         streamPrefix: 'hermes-agent',
         logGroup: new logs.LogGroup(this, 'AgentLogs', {
           logGroupName: '/ecs/hermes/agent',
-          retention: logs.RetentionDays.THIRTY_DAYS,
+          retention: logs.RetentionDays.ONE_MONTH,
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
       }),
