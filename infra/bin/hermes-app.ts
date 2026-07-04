@@ -6,6 +6,7 @@ import { EfsStack } from '../lib/efs-stack';
 import { Ec2SandboxStack } from '../lib/ec2-stack';
 import { EcrStack } from '../lib/ecr-stack';
 import { EcsClusterStack } from '../lib/ecs-stack';
+import { ApiGatewayStack } from '../lib/apigw-stack';
 
 const app = new cdk.App();
 const env = { region: 'eu-central-1' };
@@ -25,6 +26,11 @@ const ecs = new EcsClusterStack(app, 'HermesEcsStack', {
   sandboxPrivateIp: ec2Sandbox.sandboxPrivateIp,
   freellmapiRepo: ecr.freellmapiRepo,
   agentRepo: ecr.agentRepo,
+});
+new ApiGatewayStack(app, 'HermesApiGatewayStack', {
+  env,
+  vpc: vpc.vpc,
+  freellmapiService: ecs.freellmapiService,
 });
 
 app.synth();
