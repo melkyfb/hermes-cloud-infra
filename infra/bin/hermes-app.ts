@@ -4,6 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { VpcStack } from '../lib/vpc-stack';
 import { EfsStack } from '../lib/efs-stack';
 import { Ec2SandboxStack } from '../lib/ec2-stack';
+import { EcrStack } from '../lib/ecr-stack';
 
 const app = new cdk.App();
 const env = { region: 'eu-central-1' };
@@ -11,5 +12,6 @@ const env = { region: 'eu-central-1' };
 const vpc = new VpcStack(app, 'HermesVpcStack', { env });
 const efs = new EfsStack(app, 'HermesEfsStack', { env, vpc: vpc.vpc });
 const ec2Sandbox = new Ec2SandboxStack(app, 'HermesEc2Stack', { env, vpc: vpc.vpc });
+const ecr = new EcrStack(app, 'HermesEcrStack', { env });
 
 app.synth();
