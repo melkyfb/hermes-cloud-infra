@@ -5,7 +5,7 @@
   "bin": { "hermes-app": "bin/hermes-app.ts" },
   "scripts": {
     "build": "tsc",
-    "synth": "cdk synth",
+    "synth": "cdk synth --all",
     "test": "jest && node --test test/authorizer.test.mjs",
     "cdk": "cdk"
   },
