@@ -14,8 +14,10 @@ export interface EcsStackProps extends cdk.StackProps {
   efsAgent: efs.IFileSystem;
   efsApFreellmapi: efs.IAccessPoint;
   efsApAgent: efs.IAccessPoint;
-  sandboxSecurityGroup: ec2.ISecurityGroup;
-  sandboxPrivateIp: string;
+  // Sandbox is optional (context flag `-c sandbox=false`). When absent, the agent
+  // runs without DOCKER_HOST / remote code execution and no 2375 ingress is created.
+  sandboxSecurityGroup?: ec2.ISecurityGroup;
+  sandboxPrivateIp?: string;
   freellmapiRepo: ecr.IRepository;
   agentRepo: ecr.IRepository;
 }
@@ -126,9 +128,9 @@ export class EcsClusterStack extends cdk.Stack {
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
       }),
-      environment: {
-        DOCKER_HOST: `tcp://${props.sandboxPrivateIp}:2375`,
-      },
+      environment: props.sandboxPrivateIp
+        ? { DOCKER_HOST: `tcp://${props.sandboxPrivateIp}:2375` }
+        : {},
       secrets: {
         TELEGRAM_BOT_TOKEN: ecs.Secret.fromSecretsManager(telegramSecret),
         FREEAPI_DEFAULT_KEY: ecs.Secret.fromSecretsManager(freellmapiKeys, 'FREEAPI_DEFAULT_KEY'),
@@ -144,11 +146,13 @@ export class EcsClusterStack extends cdk.Stack {
       'elasticfilesystem:ClientMount',
       'elasticfilesystem:ClientWrite',
     );
-    agentTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
-      actions: ['ec2:DescribeInstances'],
-      resources: ['*'],
-      conditions: { StringEquals: { 'ec2:ResourceTag/Project': 'hermes' } },
-    }));
+    if (props.sandboxSecurityGroup) {
+      agentTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: ['ec2:DescribeInstances'],
+        resources: ['*'],
+        conditions: { StringEquals: { 'ec2:ResourceTag/Project': 'hermes' } },
+      }));
+    }
 
     const agentService = new ecs.FargateService(this, 'AgentService', {
       cluster: this.cluster,
@@ -162,13 +166,16 @@ export class EcsClusterStack extends cdk.Stack {
     });
 
     // LACUNA C: allow the Agent to reach the sandbox Docker daemon (tcp 2375).
-    new ec2.CfnSecurityGroupIngress(this, 'SandboxIngressFromAgent', {
-      groupId: props.sandboxSecurityGroup.securityGroupId,
-      sourceSecurityGroupId: agentService.connections.securityGroups[0].securityGroupId,
-      ipProtocol: 'tcp',
-      fromPort: 2375,
-      toPort: 2375,
-      description: 'Hermes-Agent -> sandbox Docker daemon',
-    });
+    // Only when the sandbox is enabled.
+    if (props.sandboxSecurityGroup) {
+      new ec2.CfnSecurityGroupIngress(this, 'SandboxIngressFromAgent', {
+        groupId: props.sandboxSecurityGroup.securityGroupId,
+        sourceSecurityGroupId: agentService.connections.securityGroups[0].securityGroupId,
+        ipProtocol: 'tcp',
+        fromPort: 2375,
+        toPort: 2375,
+        description: 'Hermes-Agent -> sandbox Docker daemon',
+      });
+    }
   }
 }

@@ -44,6 +44,17 @@ cd infra && npm ci && npx cdk synth --all && npm test
 6. Trigger the service workflows (or run them manually) to mirror images into ECR.
 7. Deploy the rest: `npx cdk deploy --all`.
 
+## EC2 sandbox (optional)
+The `HermesEc2Stack` sandbox (remote Docker host for the agent's code execution) is opt-out.
+Disable it with `-c sandbox=false` on any cdk command:
+```bash
+npx cdk deploy --all -c sandbox=false
+```
+Use this when the AWS account can't launch EC2 (e.g. a new/unverified account returns
+`This account is currently blocked ... account-verification`). With the sandbox off, the agent
+runs without `DOCKER_HOST` (no remote code exec) and no 2375 ingress is created. Re-enable later
+by deploying without the flag once EC2 is available.
+
 ## Secrets (create manually before deploy)
 - `hermes/freellmapi-keys` (JSON): `{ "FREEAPI_MASTER_KEY": "...", "FREEAPI_DEFAULT_KEY": "...", "ENCRYPTION_KEY": "..." }`
 - `hermes/telegram-bot-token` (plaintext): the BotFather token.

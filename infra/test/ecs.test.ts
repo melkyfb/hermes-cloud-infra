@@ -8,7 +8,7 @@ import { EcsClusterStack } from '../lib/ecs-stack';
 
 const env = { account: '111111111111', region: 'eu-central-1' };
 
-function build() {
+function build(withSandbox = true) {
   const app = new App();
   const vpc = new VpcStack(app, 'Vpc', { env });
   const efs = new EfsStack(app, 'Efs', { env, vpc: vpc.vpc });
@@ -21,8 +21,8 @@ function build() {
     efsAgent: efs.agentFs,
     efsApFreellmapi: efs.freellmapiAccessPoint,
     efsApAgent: efs.agentAccessPoint,
-    sandboxSecurityGroup: ec2s.sandboxSg,
-    sandboxPrivateIp: ec2s.sandboxPrivateIp,
+    sandboxSecurityGroup: withSandbox ? ec2s.sandboxSg : undefined,
+    sandboxPrivateIp: withSandbox ? ec2s.sandboxPrivateIp : undefined,
     freellmapiRepo: ecr.freellmapiRepo,
     agentRepo: ecr.agentRepo,
   });
@@ -45,4 +45,11 @@ test('EcsClusterStack: freellmapi container listens on 3001', () => {
       Match.objectLike({ PortMappings: Match.arrayWith([Match.objectLike({ ContainerPort: 3001 })]) }),
     ]),
   });
+});
+
+test('EcsClusterStack: sandbox disabled → no 2375 ingress, no DOCKER_HOST', () => {
+  const t = build(false);
+  t.resourceCountIs('AWS::ECS::Service', 2); // both services still deploy
+  t.resourceCountIs('AWS::EC2::SecurityGroupIngress', 0); // no sandbox ingress
+  expect(JSON.stringify(t.toJSON())).not.toContain('DOCKER_HOST');
 });
