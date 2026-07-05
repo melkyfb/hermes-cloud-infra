@@ -25,7 +25,7 @@ Resources:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
                 token.actions.githubusercontent.com:sub:
-                  - repo:melkyfb/hermes-platform-infra:ref:refs/heads/main
+                  - repo:melkyfb/hermes-cloud-infra:ref:refs/heads/main
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 Outputs:
