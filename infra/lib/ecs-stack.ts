@@ -91,6 +91,7 @@ export class EcsClusterStack extends cdk.Stack {
 
     this.freellmapiService = new ecs.FargateService(this, 'FreellmapiService', {
       cluster: this.cluster,
+      serviceName: 'FreellmapiService', // fixed name so deploy-freellmapi.yml can target it
       taskDefinition: freellmapiTask,
       desiredCount: 1,
       assignPublicIp: false,
@@ -151,6 +152,7 @@ export class EcsClusterStack extends cdk.Stack {
 
     const agentService = new ecs.FargateService(this, 'AgentService', {
       cluster: this.cluster,
+      serviceName: 'AgentService', // fixed name so deploy-hermes-agent.yml can target it
       taskDefinition: agentTask,
       desiredCount: 1,
       assignPublicIp: false,

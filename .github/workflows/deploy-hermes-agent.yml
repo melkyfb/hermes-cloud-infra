@@ -29,5 +29,13 @@ jobs:
           IMAGE=$ECR_REGISTRY/$REPO
           docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./services/hermes-agent
           docker push $IMAGE --all-tags
-      - name: Force ECS redeploy
-        run: aws ecs update-service --cluster hermes-cluster --service $SERVICE --force-new-deployment --region $AWS_REGION
+      - name: Force ECS redeploy (skip if service not up yet — first deploy)
+        run: |
+          status=$(aws ecs describe-services --cluster hermes-cluster --services "$SERVICE" \
+            --region "$AWS_REGION" --query 'services[0].status' --output text 2>/dev/null || echo MISSING)
+          if [ "$status" = "ACTIVE" ]; then
+            aws ecs update-service --cluster hermes-cluster --service "$SERVICE" \
+              --force-new-deployment --region "$AWS_REGION"
+          else
+            echo "ECS service $SERVICE not ACTIVE (status=$status). Image is in ECR; run 'cdk deploy --all' to create the service. Skipping force-redeploy."
+          fi
