@@ -16,6 +16,11 @@ cd infra && npm ci && npx cdk synth --all && npm test
 ```
 
 ## First deploy (ordered — resolves the image chicken-and-egg)
+
+> Local `cdk deploy` needs AWS credentials configured (`aws configure` / env vars) with
+> permission to deploy — the same admin creds used for the OIDC step below. No `.env` file is
+> used: region comes from `bin/hermes-app.ts` (`eu-central-1`) and the account from your creds.
+
 1. Deploy OIDC trust once (admin creds):
    ```bash
    aws cloudformation deploy --template-file github-oidc-setup.yml \
@@ -23,10 +28,21 @@ cd infra && npm ci && npx cdk synth --all && npm test
    ```
 2. Set GitHub secret `AWS_ACCOUNT_ID`.
 3. Create the secrets in Secrets Manager (see below).
-4. Deploy `HermesEcrStack` first so the repos exist:
-   `cd infra && npx cdk deploy HermesEcrStack`.
-5. Trigger the service workflows (or run them manually) to mirror images into ECR.
-6. Deploy the rest: `npx cdk deploy --all`.
+4. **Install deps and bootstrap the environment (first time only):**
+   ```bash
+   cd infra
+   npm ci                                              # REQUIRED — installs aws-cdk-lib etc.
+   npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/eu-central-1   # needed for asset-bearing stacks
+   ```
+   Skipping `npm ci` causes `Cannot find module 'aws-cdk-lib'` (all stack props then look like
+   they lack `env`). `cdk bootstrap` is required because the ApiGateway stack ships the Lambda
+   authorizer as an asset.
+5. Deploy `HermesEcrStack` first so the repos exist:
+   ```bash
+   npx cdk deploy HermesEcrStack
+   ```
+6. Trigger the service workflows (or run them manually) to mirror images into ECR.
+7. Deploy the rest: `npx cdk deploy --all`.
 
 ## Secrets (create manually before deploy)
 - `hermes/freellmapi-keys` (JSON): `{ "FREEAPI_MASTER_KEY": "...", "FREEAPI_DEFAULT_KEY": "...", "ENCRYPTION_KEY": "..." }`
