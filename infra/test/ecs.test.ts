@@ -41,3 +41,19 @@ test('EcsClusterStack: freellmapi container listens on 3001', () => {
     ]),
   });
 });
+
+test('EcsClusterStack: private Cloud Map namespace hermes.local exists', () => {
+  const t = build();
+  t.hasResourceProperties('AWS::ServiceDiscovery::PrivateDnsNamespace', { Name: 'hermes.local' });
+});
+
+test('EcsClusterStack: freellmapi allows 3001 only from the VPC CIDR', () => {
+  const t = build();
+  t.hasResourceProperties('AWS::EC2::SecurityGroup', {
+    SecurityGroupIngress: Match.arrayWith([
+      Match.objectLike({
+        FromPort: 3001, ToPort: 3001, IpProtocol: 'tcp', CidrIp: '10.0.0.0/16',
+      }),
+    ]),
+  });
+});

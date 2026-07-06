@@ -5,6 +5,7 @@ import * as efs from 'aws-cdk-lib/aws-efs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as servicediscovery from 'aws-cdk-lib/aws-servicediscovery';
 import { Construct } from 'constructs';
 
 export interface EcsStackProps extends cdk.StackProps {
@@ -28,6 +29,11 @@ export class EcsClusterStack extends cdk.Stack {
       vpc: props.vpc,
       clusterName: 'hermes-cluster',
       containerInsights: true,
+      defaultCloudMapNamespace: {
+        name: 'hermes.local',
+        type: servicediscovery.NamespaceType.DNS_PRIVATE,
+        useForServiceConnect: true,
+      },
     });
 
     const telegramSecret = secretsmanager.Secret.fromSecretNameV2(
@@ -73,7 +79,7 @@ export class EcsClusterStack extends cdk.Stack {
         FREEAPI_MASTER_KEY: ecs.Secret.fromSecretsManager(freellmapiKeys, 'FREEAPI_MASTER_KEY'),
         ENCRYPTION_KEY: ecs.Secret.fromSecretsManager(freellmapiKeys, 'ENCRYPTION_KEY'),
       },
-      portMappings: [{ containerPort: 3001, protocol: ecs.Protocol.TCP }],
+      portMappings: [{ name: 'freellmapi', containerPort: 3001, protocol: ecs.Protocol.TCP }],
     });
     freellmapiContainer.addMountPoints({
       containerPath: '/app/server/data',
@@ -94,7 +100,17 @@ export class EcsClusterStack extends cdk.Stack {
       assignPublicIp: false,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
       circuitBreaker: { enable: true, rollback: true },
+      serviceConnectConfiguration: {
+        services: [{ portMappingName: 'freellmapi', dnsName: 'freellmapi', port: 3001 }],
+      },
     });
+
+    // In-VPC only: the agent (and later a Tailscale sidecar) reach FreeLLMAPI on 3001.
+    this.freellmapiService.connections.allowFrom(
+      ec2.Peer.ipv4('10.0.0.0/16'), // the VPC CIDR (see VpcStack) — literal so the ingress CidrIp is concrete
+      ec2.Port.tcp(3001),
+      'In-VPC access to FreeLLMAPI',
+    );
 
     // ---- Hermes-Agent ----
     const agentTask = new ecs.FargateTaskDefinition(this, 'AgentTask', {
