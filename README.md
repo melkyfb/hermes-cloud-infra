@@ -2,7 +2,7 @@
 
 AWS CDK monorepo for the Hermes platform: FreeLLMAPI (OpenAI-compatible proxy) and
 Hermes-Agent (messaging gateway), on ECS Fargate in a private VPC.
-Region: `eu-central-1`. Design: `docs/superpowers/specs/2026-07-03-hermes-platform-infra-design.md`.
+Region: `eu-central-1`. Design: `docs/superpowers/specs/2026-07-06-hermes-private-vpc-design.md`.
 
 ## Layout
 - `infra/` — CDK app (Vpc → Efs → Ecr → Ecs). FreeLLMAPI is private, reachable in-VPC only at `freellmapi.hermes.local:3001` (Service Connect).
