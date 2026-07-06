@@ -3,7 +3,6 @@ import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as efs from 'aws-cdk-lib/aws-efs';
 import * as ecr from 'aws-cdk-lib/aws-ecr';
-import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
@@ -14,10 +13,6 @@ export interface EcsStackProps extends cdk.StackProps {
   efsAgent: efs.IFileSystem;
   efsApFreellmapi: efs.IAccessPoint;
   efsApAgent: efs.IAccessPoint;
-  // Sandbox is optional (context flag `-c sandbox=false`). When absent, the agent
-  // runs without DOCKER_HOST / remote code execution and no 2375 ingress is created.
-  sandboxSecurityGroup?: ec2.ISecurityGroup;
-  sandboxPrivateIp?: string;
   freellmapiRepo: ecr.IRepository;
   agentRepo: ecr.IRepository;
 }
@@ -128,9 +123,7 @@ export class EcsClusterStack extends cdk.Stack {
           removalPolicy: cdk.RemovalPolicy.DESTROY,
         }),
       }),
-      environment: props.sandboxPrivateIp
-        ? { DOCKER_HOST: `tcp://${props.sandboxPrivateIp}:2375` }
-        : {},
+      environment: {},
       secrets: {
         TELEGRAM_BOT_TOKEN: ecs.Secret.fromSecretsManager(telegramSecret),
         FREEAPI_DEFAULT_KEY: ecs.Secret.fromSecretsManager(freellmapiKeys, 'FREEAPI_DEFAULT_KEY'),
@@ -146,13 +139,6 @@ export class EcsClusterStack extends cdk.Stack {
       'elasticfilesystem:ClientMount',
       'elasticfilesystem:ClientWrite',
     );
-    if (props.sandboxSecurityGroup) {
-      agentTask.taskRole.addToPrincipalPolicy(new iam.PolicyStatement({
-        actions: ['ec2:DescribeInstances'],
-        resources: ['*'],
-        conditions: { StringEquals: { 'ec2:ResourceTag/Project': 'hermes' } },
-      }));
-    }
 
     const agentService = new ecs.FargateService(this, 'AgentService', {
       cluster: this.cluster,
@@ -165,17 +151,5 @@ export class EcsClusterStack extends cdk.Stack {
       enableExecuteCommand: true, // one-time WhatsApp QR bootstrap via ECS Exec
     });
 
-    // LACUNA C: allow the Agent to reach the sandbox Docker daemon (tcp 2375).
-    // Only when the sandbox is enabled.
-    if (props.sandboxSecurityGroup) {
-      new ec2.CfnSecurityGroupIngress(this, 'SandboxIngressFromAgent', {
-        groupId: props.sandboxSecurityGroup.securityGroupId,
-        sourceSecurityGroupId: agentService.connections.securityGroups[0].securityGroupId,
-        ipProtocol: 'tcp',
-        fromPort: 2375,
-        toPort: 2375,
-        description: 'Hermes-Agent -> sandbox Docker daemon',
-      });
-    }
   }
 }
