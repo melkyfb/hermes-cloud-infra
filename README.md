@@ -1,11 +1,11 @@
 # hermes-platform-infra
 
 AWS CDK monorepo for the Hermes platform: FreeLLMAPI (OpenAI-compatible proxy) and
-Hermes-Agent (messaging gateway), on ECS Fargate behind API Gateway + WAF.
+Hermes-Agent (messaging gateway), on ECS Fargate in a private VPC.
 Region: `eu-central-1`. Design: `docs/superpowers/specs/2026-07-03-hermes-platform-infra-design.md`.
 
 ## Layout
-- `infra/` — CDK app (Vpc → Efs → Ec2Sandbox → Ecr → Ecs → ApiGateway).
+- `infra/` — CDK app (Vpc → Efs → Ecr → Ecs). FreeLLMAPI is private, reachable in-VPC only at `freellmapi.hermes.local:3001` (Service Connect).
 - `services/` — thin mirror Dockerfiles (re-publish upstream images to ECR).
 - `.github/workflows/` — per-target deploy pipelines.
 - `github-oidc-setup.yml` — one-time OIDC trust bootstrap.
@@ -35,8 +35,7 @@ cd infra && npm ci && npx cdk synth --all && npm test
    npx cdk bootstrap aws://<AWS_ACCOUNT_ID>/eu-central-1   # needed for asset-bearing stacks
    ```
    Skipping `npm ci` causes `Cannot find module 'aws-cdk-lib'` (all stack props then look like
-   they lack `env`). `cdk bootstrap` is required because the ApiGateway stack ships the Lambda
-   authorizer as an asset.
+   they lack `env`).
 5. Deploy `HermesEcrStack` first so the repos exist:
    ```bash
    npx cdk deploy HermesEcrStack
@@ -44,16 +43,21 @@ cd infra && npm ci && npx cdk synth --all && npm test
 6. Trigger the service workflows (or run them manually) to mirror images into ECR.
 7. Deploy the rest: `npx cdk deploy --all`.
 
-## EC2 sandbox (optional)
-The `HermesEc2Stack` sandbox (remote Docker host for the agent's code execution) is opt-out.
-Disable it with `-c sandbox=false` on any cdk command:
-```bash
-npx cdk deploy --all -c sandbox=false
+## Agent exec backend (local, no sandbox)
+
+The agent runs code with the **`local`** exec backend. In your agent config under `HERMES_HOME`:
+```yaml
+hermes:
+  exec_backend: local
+  command_approval: true
 ```
-Use this when the AWS account can't launch EC2 (e.g. a new/unverified account returns
-`This account is currently blocked ... account-verification`). With the sandbox off, the agent
-runs without `DOCKER_HOST` (no remote code exec) and no 2375 ingress is created. Re-enable later
-by deploying without the flag once EC2 is available.
+Keep `command_approval: true` to guard unapproved execution in local mode.
+
+## Coming next (Phase 2+)
+
+- **Hermes dashboard + hermes-webui:** multi-container ECS task (dashboard, webui, agent) on the same SQLite+EFS backend.
+- **Tailscale userspace sidecar:** private access to FreeLLMAPI and the dashboard from your tailnet (until then, the private services have no external access path).
+- **Sandbox hardening:** restricted egress SG + command-approval config polish.
 
 ## Secrets (create manually before deploy)
 - `hermes/freellmapi-keys` (JSON): `{ "FREEAPI_MASTER_KEY": "...", "FREEAPI_DEFAULT_KEY": "...", "ENCRYPTION_KEY": "..." }`
@@ -69,8 +73,7 @@ aws ecs execute-command --cluster hermes-cluster --task <agent-task-id> \
 ```
 Scan the printed QR in WhatsApp → Linked devices. (QR refreshes ~20s; restart the command if it times out.)
 
-## Hardening TODO (Fase 7 — not implemented)
+## Hardening TODO (Phase 4+ — not implemented)
 - Replace `AdministratorAccess` on `GitHubActionsDeployRole` with a least-privilege custom policy.
-- Enable GuardDuty, AWS Config rules, CloudWatch alarms (Lambda throttle, ECS failures, WAF spikes).
-- Consider Docker TLS (2376) for the sandbox if compliance requires it.
+- Enable GuardDuty, AWS Config rules, CloudWatch alarms (ECS failures, latency spikes).
 - Pin all mirror `FROM` images to `@sha256` digests.
