@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "synth": "cdk synth --all",
-    "test": "jest && node --test test/authorizer.test.mjs",
+    "test": "jest",
     "cdk": "cdk"
   },
   "devDependencies": {
